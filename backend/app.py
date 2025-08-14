@@ -5,12 +5,14 @@ from twilio.rest import Client
 import requests
 import tempfile
 
+from backend.chatgpt import query_chatgpt
+from backend.stt import speech_to_text
 from config.config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, SERVER_PORT
-from services.chatgpt import query_chatgpt
-from services.stt import speech_to_text
+
 
 app = Flask(__name__)
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
 
 @app.route("/sms", methods=["POST"])
 def sms_reply():
@@ -27,6 +29,7 @@ def sms_reply():
     except Exception as e:
         print(f"Error handling SMS: {e}")
         return Response("Error processing message", status=500)
+
 
 @app.route("/voice-note", methods=["POST"])
 def voice_note():
@@ -65,6 +68,7 @@ def voice_note():
     except Exception as e:
         print(f"Error handling voice note: {e}")
         return Response("Error processing voice note", status=500)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=SERVER_PORT)
