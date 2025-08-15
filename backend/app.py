@@ -6,10 +6,9 @@ import requests
 import tempfile
 import logging
 from werkzeug.utils import secure_filename
-
 from backend.chatgpt import query_chatgpt
 from backend.stt import speech_to_text
-from .config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, SERVER_PORT
+from config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, SERVER_PORT
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +16,10 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+@app.route("/")
+def index():
+    return "Ugandan SMS Chatbot is running!"
 
 @app.route("/sms", methods=["POST"])
 def sms_reply():
@@ -26,33 +29,26 @@ def sms_reply():
         if not request.form:
             logger.error("No form data received in SMS request")
             return Response("Invalid request format", status=400)
-
         incoming_msg = request.form.get("Body", "").strip()
         from_number = request.form.get("From", "").strip()
-
         if not incoming_msg:
             logger.warning(f"Empty message received from {from_number}")
             return Response("Message body cannot be empty", status=400)
-
         if not from_number:
             logger.error("No sender number provided")
             return Response("Sender number missing", status=400)
-
         logger.info(f"Received SMS from {from_number}: {incoming_msg}")
-
         # Process message with ChatGPT
         bot_response = query_chatgpt(incoming_msg)
         if not bot_response:
             logger.error("Empty response from ChatGPT")
             bot_response = "Sorry, I couldn't process your request. Please try again."
-
         # Create Twilio response
         resp = MessagingResponse()
         resp.message(bot_response)
         
         logger.info(f"Responded to {from_number} with: {bot_response}")
         return str(resp)
-
     except Exception as e:
         logger.error(f"Error handling SMS: {str(e)}", exc_info=True)
         return Response("Error processing message", status=500)
@@ -66,14 +62,11 @@ def voice_note():
         if not from_number:
             logger.error("No sender number in voice note request")
             return Response("Sender number missing", status=400)
-
         media_url = request.form.get("MediaUrl0")
         if not media_url:
             logger.error(f"No media URL in voice note from {from_number}")
             return Response("No media file uploaded", status=400)
-
         logger.info(f"Processing voice note from {from_number}")
-
         # Download the audio file with safety checks
         try:
             response = requests.get(media_url, stream=True, timeout=10)
@@ -85,39 +78,30 @@ def voice_note():
                     if chunk:  # filter out keep-alive chunks
                         tmp_file.write(chunk)
                 tmp_file_path = tmp_file.name
-
             logger.info(f"Downloaded voice note to {tmp_file_path}")
-
         except requests.RequestException as e:
             logger.error(f"Failed to download media: {str(e)}")
             return Response("Failed to process media file", status=500)
-
         try:
             # Transcribe audio to text
             transcript = speech_to_text(tmp_file_path)
             if not transcript:
                 logger.error("Empty transcription from voice note")
                 raise ValueError("Could not transcribe voice note")
-
             logger.info(f"Transcribed voice note: {transcript}")
-
             # Query ChatGPT with the transcript
             bot_response = query_chatgpt(transcript)
             if not bot_response:
                 logger.error("Empty response from ChatGPT")
                 bot_response = "Sorry, I couldn't process your voice note. Please try again."
-
             # Send SMS reply with ChatGPT response
             twilio_client.messages.create(
                 body=bot_response,
                 from_=TWILIO_PHONE_NUMBER,
                 to=from_number
             )
-
             logger.info(f"Sent SMS response to {from_number}")
-
             return Response("Voice note processed and SMS response sent", status=200)
-
         finally:
             # Cleanup temporary file
             try:
@@ -125,7 +109,6 @@ def voice_note():
                 logger.info(f"Deleted temporary file {tmp_file_path}")
             except OSError as e:
                 logger.error(f"Error deleting temp file: {str(e)}")
-
     except Exception as e:
         logger.error(f"Error handling voice note: {str(e)}", exc_info=True)
         return Response("Error processing voice note", status=500)
