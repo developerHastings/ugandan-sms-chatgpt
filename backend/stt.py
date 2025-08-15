@@ -1,5 +1,5 @@
 import requests
-from config.config import OPENAI_API_KEY
+from .config import OPENAI_API_KEY
 
 def speech_to_text(audio_file_path):
     url = "https://api.openai.com/v1/audio/transcriptions"
