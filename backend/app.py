@@ -8,7 +8,7 @@ import logging
 from werkzeug.utils import secure_filename
 from backend.chatgpt import query_chatgpt
 from backend.stt import speech_to_text
-from config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, SERVER_PORT
+from .config import TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, SERVER_PORT
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
