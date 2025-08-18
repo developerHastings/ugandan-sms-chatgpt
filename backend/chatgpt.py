@@ -9,7 +9,7 @@ def query_chatgpt(message):
         "Content-Type": "application/json"
     }
     data = {
-        "model": "gpt-4o-mini",
+        "model": "gpt-5",
         "messages": [{"role": "user", "content": message}],
         "max_tokens": 500,
     }
