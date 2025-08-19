@@ -99,12 +99,4 @@ def voice_note():
         return Response("Processing error", status=500)
 
 if __name__ == "__main__":
-    # Add debug info
-    print("Configuration values:")
-    print(f"OpenAI Key: {config.OPENAI_API_KEY[:5]}...")
-    print(f"Twilio SID: {config.TWILIO_ACCOUNT_SID}")
-    print(f"Twilio Token: {config.TWILIO_AUTH_TOKEN[:5]}...")
-    print(f"Twilio Number: {config.TWILIO_PHONE_NUMBER}")
-    print(f"Server Port: {config.SERVER_PORT}")
-    
-    app.run(host="0.0.0.0", port=config.SERVER_PORT)
+    app.run(host="0.0.0.0", port=config.SERVER_PORT, debug=config.DEBUG)

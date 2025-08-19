@@ -10,6 +10,8 @@ class Config:
         self.TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
         self.TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
         self.SERVER_PORT = int(os.getenv("PORT", "5000"))
-
+        self.ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "default-admin-token")
+        self.DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+        self.DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
 # Create a single instance of the configuration
 config = Config()
