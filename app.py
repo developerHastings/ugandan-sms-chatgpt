@@ -18,7 +18,8 @@ from services import (
     track_usage,
     handle_feedback,
     moderate_content,
-    detect_emergency
+    detect_emergency,
+    handle_emergency  # Add this import
 )
 
 app = Flask(__name__)
@@ -54,9 +55,10 @@ def sms_reply():
         # Track usage
         track_usage(from_number, "sms")
         
-        # Check for emergency
+        # Check for emergency - UPDATED
         if detect_emergency(incoming_msg):
-            return Response("Emergency alert sent to authorities", status=200)
+            emergency_type = handle_emergency(from_number, incoming_msg)
+            return Response(f"Emergency detected! {emergency_type.capitalize()} services have been alerted.", status=200)
         
         # Moderate content
         if not moderate_content(incoming_msg):
@@ -121,9 +123,10 @@ def voice_note():
         transcript = speech_to_text(tmp_path)
         logger.info(f"Voice note from {from_number}: {transcript}")
         
-        # Check for emergency
+        # Check for emergency - UPDATED
         if detect_emergency(transcript):
-            return Response("Emergency alert sent to authorities", status=200)
+            emergency_type = handle_emergency(from_number, transcript)
+            return Response(f"Emergency detected in voice note! {emergency_type.capitalize()} services have been alerted.", status=200)
         
         # Moderate content
         if not moderate_content(transcript):

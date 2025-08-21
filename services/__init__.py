@@ -7,7 +7,7 @@ from .menu import menu_system
 from .analytics import track_usage
 from .feedback import handle_feedback
 from .moderation import moderate_content
-from .emergency import detect_emergency
+from .emergency import detect_emergency, handle_emergency
 
 __all__ = [
     'query_chatgpt',
