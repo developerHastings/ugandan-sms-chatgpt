@@ -19,5 +19,6 @@ __all__ = [
     'track_usage',
     'handle_feedback',
     'moderate_content',
-    'detect_emergency'
+    'detect_emergency',
+    'handle_emergency'
 ]
