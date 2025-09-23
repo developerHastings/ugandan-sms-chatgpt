@@ -3,6 +3,9 @@ from flask import Flask, request, Response, jsonify
 import logging
 import tempfile
 import requests
+import tempfile
+import logging
+from werkzeug.utils import secure_filename
 
 from backend.chatgpt import query_chatgpt
 from backend.stt import speech_to_text
@@ -28,56 +31,40 @@ at_service = AfricaTalkingService(
     sender_id=AFRICASTALKING_SENDER_ID
 )
 
-@app.route("/africastalking/sms", methods=["POST"])
-def africastalking_sms():
-    """Handle incoming SMS from Africa's Talking"""
+@app.route("/sms", methods=["POST"])
+def sms_reply():
+    """Handle incoming SMS messages and respond using ChatGPT."""
     try:
-        # Process incoming SMS
-        sms_data = at_service.handle_incoming_sms(request.form)
-        from_number = sms_data['from_number']
-        incoming_msg = sms_data['text']
-        
-        logger.info(f"Processing SMS from {from_number}: {incoming_msg}")
-        
-        # Check for voice preference
-        voice_response = False
-        language = get_user_preference(from_number, "language", DEFAULT_LANGUAGE)
-        
-        # Check for voice command (e.g., "voice:lg Hello")
-        if incoming_msg.lower().startswith(('voice:', 'audio:', 'speak:')):
-            voice_response = True
-            parts = incoming_msg.split(':', 2)
-            if len(parts) > 1:
-                if len(parts) > 2 and parts[1] in SUPPORTED_LANGUAGES:
-                    language = parts[1]
-                    incoming_msg = parts[2].strip()
-                    set_user_preference(from_number, "language", language)
-                else:
-                    incoming_msg = parts[1].strip()
-        
-        # Set response preference
-        set_user_preference(from_number, "prefers_voice", str(voice_response))
-        
-        # Process with ChatGPT
-        bot_response = query_chatgpt(incoming_msg, from_number)
+        # Validate incoming request
+        if not request.form:
+            logger.error("No form data received in SMS request")
+            return Response("Invalid request format", status=400)
+
+        incoming_msg = request.form.get("Body", "").strip()
+        from_number = request.form.get("From", "").strip()
+
+        if not incoming_msg:
+            logger.warning(f"Empty message received from {from_number}")
+            return Response("Message body cannot be empty", status=400)
+
+        if not from_number:
+            logger.error("No sender number provided")
+            return Response("Sender number missing", status=400)
+
+        logger.info(f"Received SMS from {from_number}: {incoming_msg}")
+
+        # Process message with ChatGPT
+        bot_response = query_chatgpt(incoming_msg)
         if not bot_response:
             bot_response = "Sorry, I couldn't process your request. Please try again."
+
+        # Create Twilio response
+        resp = MessagingResponse()
+        resp.message(bot_response)
         
-        # Send response based on preference
-        if voice_response:
-            # Send voice call with TTS
-            success = at_service.send_voice_message(from_number, bot_response, language)
-            if success:
-                return Response("Voice message sent", status=200)
-            else:
-                # Fallback to SMS
-                at_service.send_sms(from_number, bot_response)
-        else:
-            # Send SMS
-            at_service.send_sms(from_number, bot_response)
-        
-        return Response("SMS processed", status=200)
-        
+        logger.info(f"Responded to {from_number} with: {bot_response}")
+        return str(resp)
+
     except Exception as e:
         logger.error(f"Error handling Africa's Talking SMS: {str(e)}")
         return Response("Error processing message", status=500)
@@ -86,131 +73,71 @@ def africastalking_sms():
 def africastalking_voice():
     """Handle incoming voice calls from Africa's Talking"""
     try:
-        # Process incoming call
-        call_data = at_service.handle_voice_call(request.form)
-        from_number = call_data['from_number']
-        session_id = call_data['session_id']
-        
-        logger.info(f"Processing voice call from {from_number}")
-        
-        # Africa's Talking expects XML response for voice calls
-        response_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Say voice="woman" playBeep="false">
-        Welcome to SMStoAI Voice Assistant. Please speak your message after the beep.
-        You can ask me anything in English, Luganda, or Swahili.
-    </Say>
-    <Record 
-        action="/africastalking/voice/transcribe/{session_id}" 
-        finishOnKey="#" 
-        maxLength="30" 
-        playBeep="true" 
-        trimSilence="true"
-    />
-    <Say voice="woman">
-        Thank you. Your message is being processed. You will receive a response shortly.
-    </Say>
-</Response>"""
-        
-        return Response(response_xml, mimetype='text/xml')
-        
-    except Exception as e:
-        logger.error(f"Error handling Africa's Talking voice: {str(e)}")
-        error_xml = """<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Say voice="woman">Sorry, we encountered an error. Please try again later.</Say>
-</Response>"""
-        return Response(error_xml, mimetype='text/xml')
+        # Validate request
+        from_number = request.form.get("From", "").strip()
+        if not from_number:
+            logger.error("No sender number in voice note request")
+            return Response("Sender number missing", status=400)
 
-@app.route("/africastalking/voice/transcribe/<session_id>", methods=["POST"])
-def voice_transcribe(session_id):
-    """Transcribe voice recording and respond"""
-    try:
-        from_number = request.form.get('callerNumber', '').strip()
-        recording_url = request.form.get('recordingUrl', '')
-        
-        if not recording_url:
-            logger.error("No recording URL provided")
-            return Response("No recording", status=400)
-        
-        # Download recording
-        response = requests.get(recording_url, stream=True, timeout=30)
-        response.raise_for_status()
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    tmp_file.write(chunk)
-            audio_path = tmp_file.name
-        
+        media_url = request.form.get("MediaUrl0")
+        if not media_url:
+            logger.error(f"No media URL in voice note from {from_number}")
+            return Response("No media file uploaded", status=400)
+
+        logger.info(f"Processing voice note from {from_number}")
+
+        # Download the audio file with safety checks
         try:
-            # Transcribe audio
-            transcript = speech_to_text(audio_path)
-            logger.info(f"Transcribed voice message from {from_number}: {transcript}")
+            response = requests.get(media_url, stream=True, timeout=10)
+            response.raise_for_status()
             
+            # Create secure temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".ogg") as tmp_file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:  # filter out keep-alive chunks
+                        tmp_file.write(chunk)
+                tmp_file_path = tmp_file.name
+
+            logger.info(f"Downloaded voice note to {tmp_file_path}")
+
+        except requests.RequestException as e:
+            logger.error(f"Failed to download media: {str(e)}")
+            return Response("Failed to process media file", status=500)
+
+        try:
+            # Transcribe audio to text
+            transcript = speech_to_text(tmp_file_path)
             if not transcript:
-                transcript = "I couldn't understand the audio message."
-            
-            # Process with ChatGPT
-            bot_response = query_chatgpt(transcript, from_number)
+                logger.error("Empty transcription from voice note")
+                raise ValueError("Could not transcribe voice note")
+
+            logger.info(f"Transcribed voice note: {transcript}")
+
+            # Query ChatGPT with the transcript
+            bot_response = query_chatgpt(transcript)
             if not bot_response:
-                bot_response = "Sorry, I couldn't process your voice message. Please try again."
-            
-            # Get user's language preference
-            language = get_user_preference(from_number, "language", DEFAULT_LANGUAGE)
-            
-            # Send voice response
-            at_service.send_voice_message(from_number, bot_response, language)
-            
-            logger.info(f"Voice response sent to {from_number}")
-            
+                logger.error("Empty response from ChatGPT")
+                bot_response = "Sorry, I couldn't process your voice note. Please try again."
+
+            # Send SMS reply with ChatGPT response
+            twilio_client.messages.create(
+                body=bot_response,
+                from_=TWILIO_PHONE_NUMBER,
+                to=from_number
+            )
+
+            logger.info(f"Sent SMS response to {from_number}")
+
+            return Response("Voice note processed and SMS response sent", status=200)
+
         finally:
-            # Cleanup
+            # Cleanup temporary file
             try:
-                os.remove(audio_path)
-            except OSError:
-                pass
-        
-        return Response("Voice message processed", status=200)
-        
-    except Exception as e:
-        logger.error(f"Error transcribing voice: {str(e)}")
-        return Response("Error processing voice", status=500)
+                os.remove(tmp_file_path)
+                logger.info(f"Deleted temporary file {tmp_file_path}")
+            except OSError as e:
+                logger.error(f"Error deleting temp file: {str(e)}")
 
-@app.route("/africastalking/delivery", methods=["POST"])
-def delivery_report():
-    """Handle delivery reports from Africa's Talking"""
-    try:
-        status = request.form.get('status', '')
-        message_id = request.form.get('id', '')
-        number = request.form.get('number', '')
-        
-        logger.info(f"Delivery report: Message {message_id} to {number} - Status: {status}")
-        
-        return Response("Delivery report received", status=200)
-        
-    except Exception as e:
-        logger.error(f"Error processing delivery report: {str(e)}")
-        return Response("Error", status=500)
-
-# Keep the existing voice-note endpoint but adapt it for Africa's Talking
-@app.route("/voice-note", methods=["POST"])
-def voice_note():
-    """Handle incoming media messages (voice notes)"""
-    try:
-        # Africa's Talking sends media messages differently
-        from_number = request.form.get('from', '').strip()
-        media_url = request.form.get('mediaUrl', '')  # Different parameter name
-        
-        if not from_number or not media_url:
-            logger.error("Missing from number or media URL")
-            return Response("Invalid request", status=400)
-        
-        # Similar processing as before, but using Africa's Talking service
-        # ... (implementation similar to previous voice-note handler)
-        
-        return Response("Voice note processed", status=200)
-        
     except Exception as e:
         logger.error(f"Error handling voice note: {str(e)}")
         return Response("Error processing voice note", status=500)
