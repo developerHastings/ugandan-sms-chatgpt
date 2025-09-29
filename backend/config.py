@@ -7,7 +7,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 # Verify critical variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
-    raise ValueError("Missing OPENAI_API_KEY in .env")
+    raise ValueError("Missing OPENAI_API_KEY in .env file. Please add your OpenAI API key.")
+if not OPENAI_API_KEY.startswith('sk-'):
+    raise ValueError("Invalid OPENAI_API_KEY format. Should start with 'sk-'")
 
 # Africa's Talking Configuration
 AFRICASTALKING_USERNAME = os.getenv("AFRICASTALKING_USERNAME")
@@ -17,9 +19,11 @@ AFRICASTALKING_VOICE_CALLER_ID = os.getenv("AFRICASTALKING_VOICE_CALLER_ID", "")
 
 # Validate Africa's Talking credentials
 if not AFRICASTALKING_USERNAME:
-    raise ValueError("Missing AFRICASTALKING_USERNAME in .env")
+    raise ValueError("Missing AFRICASTALKING_USERNAME in .env file. Please add your Africa's Talking username.")
 if not AFRICASTALKING_API_KEY:
-    raise ValueError("Missing AFRICASTALKING_API_KEY in .env")
+    raise ValueError("Missing AFRICASTALKING_API_KEY in .env file. Please add your Africa's Talking API key.")
+if not AFRICASTALKING_API_KEY.startswith('atsk_'):
+    raise ValueError("Invalid AFRICASTALKING_API_KEY format. Should start with 'atsk_'")
 
 # Africa's Talking settings
 AFRICASTALKING_SANDBOX = os.getenv("AFRICASTALKING_SANDBOX", "True").lower() == "true"

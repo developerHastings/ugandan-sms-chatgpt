@@ -5,8 +5,8 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# Use absolute path for user preferences
-USER_PREFS_FILE = os.path.join(os.path.dirname(__file__), "..", "data", "user_preferences.json")
+# Use absolute path for user preferences - create data directory in backend folder
+USER_PREFS_FILE = os.path.join(os.path.dirname(__file__), "data", "user_preferences.json")
 
 def ensure_data_directory():
     """Create data directory if it doesn't exist"""
