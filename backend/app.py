@@ -5,18 +5,18 @@ import tempfile
 import requests
 import json
 
-from backend.chatgpt import query_chatgpt
-from backend.stt import speech_to_text
-from backend.tts import text_to_speech
-from backend.africastalking_service import AfricaTalkingService, at_service
-from backend.user_preferences import (
+from .chatgpt import query_chatgpt
+from .stt import speech_to_text
+from .tts import text_to_speech
+from .africastalking_service import AfricaTalkingService, at_service
+from .user_preferences import (
     get_user_preference, 
     set_user_preference, 
     set_user_role, 
     set_user_language,
     get_user_role
 )
-from config import (
+from .config import (
     AFRICASTALKING_USERNAME, 
     AFRICASTALKING_API_KEY, 
     AFRICASTALKING_SENDER_ID, 
@@ -26,21 +26,26 @@ from config import (
     VOICE_RESPONSE_ENABLED
 )
 
+app = Flask(__name__)
+
+# Create logs directory if it doesn't exist (do this before logging setup)
+logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(logs_dir, exist_ok=True)
+
 # Configure logging
+log_file = os.path.join(logs_dir, 'app.log')
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/app.log'),
+        logging.FileHandler(log_file, encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-
-# Create logs directory if it doesn't exist
-os.makedirs('logs', exist_ok=True)
+# Log startup info
+logger.info("=== Uganda AI SMS Chatbot Starting ===")
 
 @app.route("/")
 def health_check():

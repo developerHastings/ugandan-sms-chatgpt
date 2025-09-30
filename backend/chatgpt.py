@@ -1,9 +1,17 @@
-import requests
 import logging
+from openai import OpenAI
 from .config import OPENAI_API_KEY
 from .user_preferences import get_user_preference
 
 logger = logging.getLogger(__name__)
+
+# Initialize OpenAI client with error handling
+try:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    logger.info("OpenAI client initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+    raise ValueError(f"OpenAI client initialization failed: {str(e)}")
 
 def query_chatgpt(message, phone_number=None, context=None, user_role=None):
     """
@@ -59,41 +67,30 @@ def query_chatgpt(message, phone_number=None, context=None, user_role=None):
         # Build messages array
         messages = system_messages + [{"role": "user", "content": message}]
         
-        url = "https://api.openai.com/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {OPENAI_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        data = {
-            "model": "gpt-4o-mini",
-            "messages": messages,
-            "max_tokens": 350,  # Reduced for SMS compatibility
-            "temperature": 0.7,
-        }
-
         logger.debug(f"Sending request to OpenAI API with {len(messages)} messages")
-        response = requests.post(url, json=data, headers=headers, timeout=30)
-        response.raise_for_status()
-        result = response.json()
-
-        # Safety checks
-        if result is None:
-            raise ValueError("Empty response from OpenAI API")
-        if 'choices' not in result or not result['choices']:
-            raise ValueError(f"Unexpected response format: {result}")
-
-        bot_response = result['choices'][0]['message']['content'].strip()
+        
+        # Use new OpenAI client
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            max_tokens=350,  # Reduced for SMS compatibility
+            temperature=0.7,
+            timeout=30
+        )
+        
+        # Extract response
+        bot_response = response.choices[0].message.content.strip()
         logger.info(f"ChatGPT response generated: {bot_response[:100]}...")
         
         return bot_response
 
-    except requests.exceptions.Timeout:
-        logger.error("OpenAI API request timed out")
-        return "Sorry, the request took too long. Please try again."
-    except requests.exceptions.RequestException as e:
-        logger.error(f"OpenAI API request failed: {str(e)}")
-        return "Sorry, I'm having trouble connecting right now. Please try again later."
+    except Exception as openai_error:
+        if "timeout" in str(openai_error).lower():
+            logger.error("OpenAI API request timed out")
+            return "Sorry, the request took too long. Please try again."
+        else:
+            logger.error(f"OpenAI API request failed: {str(openai_error)}")
+            return "Sorry, I'm having trouble connecting right now. Please try again later."
     except Exception as e:
         logger.error(f"Error in query_chatgpt: {str(e)}", exc_info=True)
         return "Sorry, I encountered an error processing your request. Please try again."
