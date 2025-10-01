@@ -37,10 +37,6 @@ VOICE_RESPONSE_ENABLED = os.getenv("VOICE_RESPONSE_ENABLED", "True").lower() == 
 # Server Configuration
 SERVER_PORT = int(os.getenv("PORT", "5000"))
 
-# Optional: Keep Twilio for transition period (comment out or remove later)
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
 # Log configuration status - UPDATED WITH SHORTCODE INFO
 print("=" * 50)
@@ -70,8 +66,6 @@ if AFRICASTALKING_SHORTCODE and AFRICASTALKING_SHORTCODE.startswith('*'):
 else:
     print("🔧 DEVELOPMENT MODE: Using alphanumeric sender ID")
 
-# Optional: Warn if Twilio credentials are still present (for migration)
-if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
-    print("  Twilio credentials detected - Africa's Talking is now primary service")
+
 
 print("Configuration loaded successfully!")

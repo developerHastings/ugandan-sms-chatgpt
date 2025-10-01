@@ -5,18 +5,18 @@ import tempfile
 import requests
 import json
 
-from .chatgpt import query_chatgpt
-from .stt import speech_to_text
-from .tts import text_to_speech
-from .africastalking_service import AfricaTalkingService, at_service
-from .user_preferences import (
+from chatgpt import query_chatgpt
+from stt import speech_to_text
+from tts import text_to_speech
+from africastalking_service import at_service
+from user_preferences import (
     get_user_preference, 
     set_user_preference, 
     set_user_role, 
     set_user_language,
     get_user_role
 )
-from .config import (
+from config import (
     AFRICASTALKING_USERNAME, 
     AFRICASTALKING_API_KEY, 
     AFRICASTALKING_SENDER_ID, 
@@ -46,15 +46,23 @@ logger = logging.getLogger(__name__)
 
 # Log startup info
 logger.info("=== Uganda AI SMS Chatbot Starting ===")
+logger.info(f"Africa's Talking Username: {AFRICASTALKING_USERNAME}")
+logger.info(f"Server Port: {SERVER_PORT}")
 
 @app.route("/")
 def health_check():
     """Health check endpoint"""
+    service_status = "healthy"
+    africastalking_status = "connected" if at_service else "disconnected"
+    
     return jsonify({
-        "status": "healthy",
+        "status": service_status,
         "service": "Uganda AI SMS Chatbot",
         "version": "2.0",
-        "features": ["SMS", "Voice", "Multi-language", "Africa's Talking"]
+        "features": ["SMS", "Voice", "Multi-language", "Africa's Talking"],
+        "africastalking_status": africastalking_status,
+        "supported_languages": SUPPORTED_LANGUAGES,
+        "voice_enabled": VOICE_RESPONSE_ENABLED
     })
 
 @app.route("/africastalking/sms", methods=["POST"])
@@ -71,6 +79,11 @@ def africastalking_sms():
             return Response("Invalid request", status=400)
         
         logger.info(f"Africa's Talking SMS from {from_number}: {text}")
+        
+        # Check if Africa's Talking service is available
+        if at_service is None:
+            logger.error("Africa's Talking service not available")
+            return Response("Service unavailable", status=503)
         
         # Validate and format phone number
         formatted_number = at_service.validate_phone_number(from_number)
@@ -168,6 +181,15 @@ def africastalking_voice():
         
         logger.info(f"Processing voice call from {from_number}, session: {session_id}")
         
+        # Check if Africa's Talking service is available
+        if at_service is None:
+            error_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="woman">Service temporarily unavailable. Please try again later.</Say>
+    <Hangup/>
+</Response>"""
+            return Response(error_xml, mimetype='application/xml')
+        
         # Validate phone number
         formatted_number = at_service.validate_phone_number(from_number)
         if not formatted_number:
@@ -220,6 +242,10 @@ def voice_transcribe():
             return Response("Invalid request", status=400)
         
         logger.info(f"Transcribing voice message from {from_number}, duration: {duration}s")
+        
+        # Check if Africa's Talking service is available
+        if at_service is None:
+            return Response("Service unavailable", status=503)
         
         # Validate phone number
         formatted_number = at_service.validate_phone_number(from_number)
@@ -277,7 +303,7 @@ def voice_transcribe():
         # Try to send error via SMS
         try:
             from_number = request.form.get('callerNumber', '')
-            if from_number:
+            if from_number and at_service:
                 formatted_number = at_service.validate_phone_number(from_number)
                 if formatted_number:
                     at_service.send_sms(formatted_number, "Sorry, there was an error processing your voice message. Please try again.")
@@ -339,6 +365,10 @@ def voice_note():
             return Response("Invalid request", status=400)
         
         logger.info(f"Processing voice note from {from_number}")
+        
+        # Check if Africa's Talking service is available
+        if at_service is None:
+            return Response("Service unavailable", status=503)
         
         # Validate phone number
         formatted_number = at_service.validate_phone_number(from_number)
@@ -404,6 +434,10 @@ def set_user_role_endpoint():
         if not phone_number or not role:
             return jsonify({"error": "Phone number and role are required"}), 400
         
+        # Check if Africa's Talking service is available
+        if at_service is None:
+            return jsonify({"error": "Service unavailable"}), 503
+        
         formatted_number = at_service.validate_phone_number(phone_number)
         if not formatted_number:
             return jsonify({"error": "Invalid phone number format"}), 400
@@ -419,6 +453,10 @@ def set_user_role_endpoint():
 def get_user_info(phone_number):
     """Get user preferences and role"""
     try:
+        # Check if Africa's Talking service is available
+        if at_service is None:
+            return jsonify({"error": "Service unavailable"}), 503
+        
         formatted_number = at_service.validate_phone_number(phone_number)
         if not formatted_number:
             return jsonify({"error": "Invalid phone number format"}), 400
@@ -438,10 +476,38 @@ def get_user_info(phone_number):
         logger.error(f"Error getting user info: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
+@app.route("/status", methods=["GET"])
+def service_status():
+    """Detailed service status endpoint"""
+    service_info = {
+        "status": "running",
+        "service": "Uganda AI SMS Chatbot",
+        "africastalking_configured": bool(AFRICASTALKING_USERNAME and AFRICASTALKING_API_KEY),
+        "africastalking_connected": at_service is not None,
+        "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "supported_languages": SUPPORTED_LANGUAGES,
+        "voice_enabled": VOICE_RESPONSE_ENABLED,
+        "server_port": SERVER_PORT
+    }
+    
+    if at_service:
+        service_info.update(at_service.get_service_info())
+    
+    return jsonify(service_info)
+
 if __name__ == "__main__":
     logger.info("Starting Uganda AI SMS Chatbot with Africa's Talking integration")
     logger.info(f"Server running on port {SERVER_PORT}")
     logger.info(f"Supported languages: {SUPPORTED_LANGUAGES}")
     logger.info(f"Voice response enabled: {VOICE_RESPONSE_ENABLED}")
+    
+    # Log Africa's Talking service status
+    if at_service:
+        logger.info("✅ Africa's Talking service initialized successfully")
+        service_info = at_service.get_service_info()
+        logger.info(f"Production ready: {service_info['production_ready']}")
+        logger.info(f"Sandbox mode: {service_info['sandbox_mode']}")
+    else:
+        logger.error("❌ Africa's Talking service failed to initialize")
     
     app.run(host="0.0.0.0", port=SERVER_PORT, debug=False)
