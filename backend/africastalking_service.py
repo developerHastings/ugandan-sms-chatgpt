@@ -4,43 +4,60 @@ import logging
 import tempfile
 import os
 import requests
-from .config import (
+from config import (
     AFRICASTALKING_USERNAME, 
     AFRICASTALKING_API_KEY, 
     AFRICASTALKING_SENDER_ID,
     AFRICASTALKING_SANDBOX,
     AFRICASTALKING_SHORTCODE,
-    AFRICASTALKING_VOICE_CALLER_ID 
+    AFRICASTALKING_VOICE_CALLER_ID
 )
 
 logger = logging.getLogger(__name__)
 
 class AfricaTalkingService:
     def __init__(self, username, api_key, sender_id):
-        # Initialize Africa's Talking SDK
-        africastalking.initialize(username, api_key)
-        self.sms = africastalking.SMS
-        self.voice = africastalking.Voice
-        self.sender_id = sender_id
-        self.shortcode = AFRICASTALKING_SHORTCODE
-        self.username = username
-        self.api_key = api_key
-        self.voice_caller_id = AFRICASTALKING_VOICE_CALLER_ID
-        
-        logger.info(f"Africa's Talking service initialized")
-        logger.info(f"Username: {username}, Sender ID: {sender_id}, Shortcode: {self.shortcode}")
+        # Initialize Africa's Talking SDK for v2.0.1
+        try:
+            # Initialize the SDK with credentials
+            africastalking.initialize(
+                username=username,
+                api_key=api_key,
+                sandbox=AFRICASTALKING_SANDBOX
+            )
+            
+            # Get the services
+            self.sms = africastalking.SMS
+            self.voice = africastalking.Voice
+            self.sender_id = sender_id
+            self.shortcode = AFRICASTALKING_SHORTCODE
+            self.username = username
+            self.api_key = api_key
+            self.voice_caller_id = AFRICASTALKING_VOICE_CALLER_ID
+            
+            logger.info("Africa's Talking service initialized successfully")
+            logger.info(f"Username: {username}, Sender ID: {sender_id}, Shortcode: {self.shortcode}")
+            logger.info(f"Sandbox mode: {AFRICASTALKING_SANDBOX}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Africa's Talking SDK: {str(e)}")
+            raise e
         
     def send_sms(self, to, message, enqueue=True):
-        """Send SMS via Africa's Talking SDK"""
+        """Send SMS via Africa's Talking SDK v2.0.1"""
         try:
-            # Format recipient as list (required by API)
-            recipients = [to]
-            
-            # USE SHORTCODE FOR PRODUCTION
+            # Use shortcode for production, fallback to sender_id
             sender = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
             
+            # Prepare SMS parameters for v2.0.1
+            sms_params = {
+                'to': [to],
+                'message': message,
+                'from_': sender
+            }
+            
             # Send SMS using Africa's Talking SDK
-            response = self.sms.send(message, recipients, sender)
+            response = self.sms.send(**sms_params)
             
             logger.info(f"SMS sent to {to} via {sender}. Response: {response}")
             return response
@@ -95,7 +112,13 @@ class AfricaTalkingService:
             # Use shortcode for production
             sender = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
             
-            response = self.sms.send(message, recipients, sender)
+            sms_params = {
+                'to': recipients,
+                'message': message,
+                'from_': sender
+            }
+            
+            response = self.sms.send(**sms_params)
             
             logger.info(f"Bulk SMS sent to {len(recipients)} recipients via {sender}. Response: {response}")
             return response
@@ -117,28 +140,20 @@ class AfricaTalkingService:
     def make_tts_call(self, to, text, language="en"):
         """Make a voice call using Africa's Talking TTS"""
         try:
-            # Map languages to appropriate TTS voices
-            voice_mapping = {
-                "en": "woman",
-                "sw": "woman",
-                "lg": "woman",  
-                "fr": "woman"
-            }
-            
-            voice = voice_mapping.get(language, "woman")
-            
             # Use voice caller ID if available, otherwise use shortcode/sender_id
             caller_id = self.voice_caller_id if self.voice_caller_id else (
                 self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
             )
             
-            # Create call using Africa's Talking voice API
-            call_options = {
-                'from': caller_id,
-                'to': to
+            # Prepare call parameters for v2.0.1
+            call_params = {
+                'from_': caller_id,
+                'to': to,
+                'text': text
             }
             
-            response = self.voice.call(call_options)
+            # Make the call
+            response = self.voice.call(**call_params)
             logger.info(f"Voice call initiated to {to} from {caller_id}: {response}")
             
             return response
@@ -202,12 +217,12 @@ class AfricaTalkingService:
             return None
     
     def handle_voice_call(self, request_data):
-        """Process incoming voice call from Africa's Talking - FIXED"""
+        """Process incoming voice call from Africa's Talking"""
         try:
             # Africa's Talking voice call format
             from_number = request_data.get('callerNumber', '').strip()
             session_id = request_data.get('sessionId', '')
-            direction = request_data.get('direction', 'incoming')  
+            direction = request_data.get('direction', 'incoming')
             call_session_state = request_data.get('callSessionState', '')
             
             logger.info(f"Received voice call from {from_number}, session: {session_id}, state: {call_session_state}")
@@ -276,14 +291,18 @@ class AfricaTalkingService:
             "shortcode": self.shortcode,
             "sandbox_mode": AFRICASTALKING_SANDBOX,
             "production_ready": bool(self.shortcode and self.shortcode.startswith('*')),
-            "voice_enabled": bool(self.voice_caller_id)
+            "voice_enabled": bool(self.voice_caller_id),
+            "sdk_version": "2.0.1"
         }
 
-# Create global instance
-at_service = AfricaTalkingService(
-    username=AFRICASTALKING_USERNAME,
-    api_key=AFRICASTALKING_API_KEY,
-    sender_id=AFRICASTALKING_SENDER_ID
-)
-
-logger.info("Africa's Talking service instance created successfully")
+# Create global instance with error handling
+try:
+    at_service = AfricaTalkingService(
+        username=AFRICASTALKING_USERNAME,
+        api_key=AFRICASTALKING_API_KEY,
+        sender_id=AFRICASTALKING_SENDER_ID
+    )
+    logger.info("Africa's Talking service instance created successfully")
+except Exception as e:
+    at_service = None
+    logger.error(f"Failed to create Africa's Talking service instance: {str(e)}")

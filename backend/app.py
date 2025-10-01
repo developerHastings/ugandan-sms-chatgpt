@@ -1,34 +1,64 @@
 import os
+import sys
 from flask import Flask, request, Response, jsonify
 import logging
 import tempfile
 import requests
 import json
 
-from chatgpt import query_chatgpt
-from stt import speech_to_text
-from tts import text_to_speech
-from africastalking_service import at_service
-from user_preferences import (
-    get_user_preference, 
-    set_user_preference, 
-    set_user_role, 
-    set_user_language,
-    get_user_role
-)
-from config import (
-    AFRICASTALKING_USERNAME, 
-    AFRICASTALKING_API_KEY, 
-    AFRICASTALKING_SENDER_ID, 
-    SERVER_PORT,
-    DEFAULT_LANGUAGE, 
-    SUPPORTED_LANGUAGES,
-    VOICE_RESPONSE_ENABLED
-)
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+try:
+    from .chatgpt import query_chatgpt
+    from .stt import speech_to_text
+    from .tts import text_to_speech
+    from .africastalking_service import at_service
+    from .user_preferences import (
+        get_user_preference, 
+        set_user_preference, 
+        set_user_role, 
+        set_user_language,
+        get_user_role
+    )
+    from .config import (
+        AFRICASTALKING_USERNAME, 
+        AFRICASTALKING_API_KEY, 
+        AFRICASTALKING_SENDER_ID, 
+        SERVER_PORT,
+        DEFAULT_LANGUAGE, 
+        SUPPORTED_LANGUAGES,
+        VOICE_RESPONSE_ENABLED
+    )
+except ImportError as e:
+    # Fallback: try absolute imports
+    print(f"Relative import failed: {e}, trying absolute imports...")
+    from chatgpt import query_chatgpt
+    from stt import speech_to_text
+    from tts import text_to_speech
+    from africastalking_service import at_service
+    from user_preferences import (
+        get_user_preference, 
+        set_user_preference, 
+        set_user_role, 
+        set_user_language,
+        get_user_role
+    )
+    from config import (
+        AFRICASTALKING_USERNAME, 
+        AFRICASTALKING_API_KEY, 
+        AFRICASTALKING_SENDER_ID, 
+        SERVER_PORT,
+        DEFAULT_LANGUAGE, 
+        SUPPORTED_LANGUAGES,
+        VOICE_RESPONSE_ENABLED
+    )
 
 app = Flask(__name__)
 
-# Create logs directory if it doesn't exist (do this before logging setup)
+# Create logs directory if it doesn't exist
 logs_dir = os.path.join(os.path.dirname(__file__), 'logs')
 os.makedirs(logs_dir, exist_ok=True)
 
