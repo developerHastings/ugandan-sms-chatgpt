@@ -1,7 +1,7 @@
 import logging
 from openai import OpenAI
-from .config import OPENAI_API_KEY
-from .user_preferences import get_user_preference
+from config import OPENAI_API_KEY
+from user_preferences import get_user_preference
 
 logger = logging.getLogger(__name__)
 

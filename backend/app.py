@@ -12,11 +12,11 @@ if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
 try:
-    from .chatgpt import query_chatgpt
-    from .stt import speech_to_text
-    from .tts import text_to_speech
-    from .africastalking_service import at_service
-    from .user_preferences import (
+    from chatgpt import query_chatgpt
+    from stt import speech_to_text
+    from tts import text_to_speech
+    from africastalking_service import at_service
+    from user_preferences import (
         get_user_preference, 
         set_user_preference, 
         set_user_role, 
