@@ -17,14 +17,10 @@ logger = logging.getLogger(__name__)
 
 class AfricaTalkingService:
     def __init__(self, username, api_key, sender_id):
-        # Initialize Africa's Talking SDK for v2.0.1
+        # Initialize Africa's Talking SDK for v2.0.1 - FIXED VERSION
         try:
-            # Initialize the SDK with credentials
-            africastalking.initialize(
-                username=username,
-                api_key=api_key,
-                sandbox=AFRICASTALKING_SANDBOX
-            )
+            # Initialize the SDK with credentials (CORRECT for v2.0.1)
+            africastalking.initialize(username, api_key)
             
             # Get the services
             self.sms = africastalking.SMS
@@ -34,30 +30,24 @@ class AfricaTalkingService:
             self.username = username
             self.api_key = api_key
             self.voice_caller_id = AFRICASTALKING_VOICE_CALLER_ID
+            self.sandbox_mode = AFRICASTALKING_SANDBOX
             
             logger.info("Africa's Talking service initialized successfully")
             logger.info(f"Username: {username}, Sender ID: {sender_id}, Shortcode: {self.shortcode}")
-            logger.info(f"Sandbox mode: {AFRICASTALKING_SANDBOX}")
+            logger.info(f"Sandbox mode: {self.sandbox_mode}")
             
         except Exception as e:
             logger.error(f"Failed to initialize Africa's Talking SDK: {str(e)}")
             raise e
         
     def send_sms(self, to, message, enqueue=True):
-        """Send SMS via Africa's Talking SDK v2.0.1"""
+        """Send SMS via Africa's Talking SDK"""
         try:
-            # Use shortcode for production, fallback to sender_id
+            # Use shortcode for production
             sender = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
             
-            # Prepare SMS parameters for v2.0.1
-            sms_params = {
-                'to': [to],
-                'message': message,
-                'from_': sender
-            }
-            
             # Send SMS using Africa's Talking SDK
-            response = self.sms.send(**sms_params)
+            response = self.sms.send(message, [to], sender)
             
             logger.info(f"SMS sent to {to} via {sender}. Response: {response}")
             return response
@@ -71,7 +61,7 @@ class AfricaTalkingService:
         """Fallback method using direct API call"""
         try:
             # Determine endpoint based on sandbox mode
-            if AFRICASTALKING_SANDBOX:
+            if self.sandbox_mode:
                 url = "https://api.sandbox.africastalking.com/version1/messaging"
                 logger.warning("Using SANDBOX API endpoint")
             else:
@@ -112,13 +102,7 @@ class AfricaTalkingService:
             # Use shortcode for production
             sender = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
             
-            sms_params = {
-                'to': recipients,
-                'message': message,
-                'from_': sender
-            }
-            
-            response = self.sms.send(**sms_params)
+            response = self.sms.send(message, recipients, sender)
             
             logger.info(f"Bulk SMS sent to {len(recipients)} recipients via {sender}. Response: {response}")
             return response
@@ -145,17 +129,19 @@ class AfricaTalkingService:
                 self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
             )
             
-            # Prepare call parameters for v2.0.1
-            call_params = {
-                'from_': caller_id,
-                'to': to,
-                'text': text
+            # Create call using Africa's Talking voice API
+            call_options = {
+                'from': caller_id,
+                'to': to
             }
             
-            # Make the call
-            response = self.voice.call(**call_params)
+            # For Africa's Talking, we need to create an external XML response
+            # that will be fetched when the call is initiated
+            response = self.voice.call(call_options)
             logger.info(f"Voice call initiated to {to} from {caller_id}: {response}")
             
+            # Note: Africa's Talking voice calls require a callback URL
+            # that returns XML with the TTS instructions
             return response
             
         except Exception as e:
@@ -164,7 +150,7 @@ class AfricaTalkingService:
     
     def get_voice_call_xml(self, text, language="en"):
         """Generate XML response for voice calls"""
-        voice = "woman"
+        voice = "woman"  # Africa's Talking supports 'man' or 'woman'
         
         # Add language-specific greeting if needed
         greetings = {
@@ -241,7 +227,7 @@ class AfricaTalkingService:
     def check_balance(self):
         """Check Africa's Talking account balance"""
         try:
-            if AFRICASTALKING_SANDBOX:
+            if self.sandbox_mode:
                 logger.info("Balance check in sandbox - using mock balance")
                 return {"balance": "UGX 50,000.00", "currency": "UGX"}
             else:
@@ -289,7 +275,7 @@ class AfricaTalkingService:
             "username": self.username,
             "sender_id": self.sender_id,
             "shortcode": self.shortcode,
-            "sandbox_mode": AFRICASTALKING_SANDBOX,
+            "sandbox_mode": self.sandbox_mode,
             "production_ready": bool(self.shortcode and self.shortcode.startswith('*')),
             "voice_enabled": bool(self.voice_caller_id),
             "sdk_version": "2.0.1"
