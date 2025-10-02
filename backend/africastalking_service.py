@@ -43,8 +43,8 @@ class AfricaTalkingService:
     def send_sms(self, to, message, enqueue=True):
         """Send SMS via Africa's Talking SDK"""
         try:
-            # Use shortcode for production
-            sender = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
+            # ALWAYS use shortcode for production - remove fallback to sender_id
+            sender = self.shortcode  # Use shortcode directly
             
             # Send SMS using Africa's Talking SDK
             response = self.sms.send(message, [to], sender)
@@ -74,8 +74,8 @@ class AfricaTalkingService:
                 'Accept': 'application/json'
             }
             
-            # Use shortcode for production, fallback to sender_id
-            from_param = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
+            # ALWAYS use shortcode
+            from_param = self.shortcode  # Use shortcode directly
             
             data = {
                 'username': self.username,
@@ -99,8 +99,8 @@ class AfricaTalkingService:
     def send_bulk_sms(self, recipients, message, enqueue=True):
         """Send SMS to multiple recipients"""
         try:
-            # Use shortcode for production
-            sender = self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
+            # ALWAYS use shortcode
+            sender = self.shortcode  # Use shortcode directly
             
             response = self.sms.send(message, recipients, sender)
             
@@ -124,10 +124,8 @@ class AfricaTalkingService:
     def make_tts_call(self, to, text, language="en"):
         """Make a voice call using Africa's Talking TTS"""
         try:
-            # Use voice caller ID if available, otherwise use shortcode/sender_id
-            caller_id = self.voice_caller_id if self.voice_caller_id else (
-                self.shortcode if self.shortcode and self.shortcode.startswith('*') else self.sender_id
-            )
+            # Use voice caller ID if available, otherwise use shortcode
+            caller_id = self.voice_caller_id if self.voice_caller_id else self.shortcode
             
             # Create call using Africa's Talking voice API
             call_options = {
